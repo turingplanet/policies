@@ -4,8 +4,9 @@
 
 This repo is the platform's shared logic. Member repos **reference** it by version (`@vN`) — they never copy it. A change here, published as a new version, reaches any member who bumps to it.
 
-It holds two things:
-- **the one review flow** (`.github/workflows/review-reusable.yml`) — the steps every member PR runs.
+It holds three things:
+- **the one review flow** (`.github/workflows/review-reusable.yml`) — the steps every member PR runs. (Not to be confused with `review.yml`: that's the thin *pointer* inside each member repo that *calls* this flow.)
+- **the contract schema** (`manifest.schema.json`) — what every member's `agent.manifest.yaml` is validated against. The platform owns it here, versioned with the tag; members don't ship their own.
 - **the one standing review agent** (`agent/`) — the AI reviewer (advice only).
 
 ## What the review flow does on every PR
@@ -69,4 +70,4 @@ That's the whole release. `@v0.0.5` resolves to that git tag, and members adopt 
 
 - **Tags are immutable + protected.** Always create a *new* tag (`v0.0.5`); never move or delete an old one — `v0.0.1…v0.0.4` stay frozen forever, so anyone still pinned to them is unaffected. The ruleset allows creating `v*` tags but blocks moving/deleting them.
 - **No internal version edits.** The flow checks out the agent at the tag the member used, so tagging `v0.0.5` automatically runs the v0.0.5 agent — you never hardcode a version anywhere in this repo.
-- **`contract:` is a different version.** The `contract: v1` input is the *manifest contract* version (bumped only when the manifest schema itself changes), not the policies tag.
+- **`contract:` is informational.** The enforced schema is `manifest.schema.json` shipped in the policies version you reference (the contract travels with the tag), so the `contract: v1` input is just a label — reserved for when multiple contract versions need to coexist. It does not change which schema runs.

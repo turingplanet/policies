@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://turing-planet.dev/schemas/agent-manifest/v1.json",
+  "$comment": "COPIED from template-repo at creation (COPY path), then detached. The contract check validates the manifest against this local copy.",
+  "title": "Agent Manifest v1",
+  "type": "object",
+  "required": ["apiVersion", "profile", "toolchain", "paths", "commands"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": { "type": "string", "enum": ["v1"] },
+    "profile": { "type": "string", "minLength": 1 },
+    "toolchain": {
+      "type": "object",
+      "required": ["language", "packageManager"],
+      "additionalProperties": false,
+      "properties": {
+        "language": { "type": "string", "minLength": 1 },
+        "packageManager": { "type": "string", "minLength": 1 }
+      }
+    },
+    "paths": {
+      "type": "object",
+      "required": ["api", "mcp"],
+      "additionalProperties": false,
+      "properties": {
+        "api": { "type": "string", "minLength": 1 },
+        "mcp": { "type": "string", "minLength": 1 }
+      }
+    },
+    "commands": {
+      "type": "object",
+      "required": ["install", "test"],
+      "additionalProperties": false,
+      "properties": {
+        "install":  { "type": "string", "minLength": 1 },
+        "test":     { "type": "string", "minLength": 1 },
+        "lint":     { "type": "string" },
+        "security": { "type": "string" }
+      }
+    }
+  }
+}

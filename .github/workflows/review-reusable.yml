@@ -7,7 +7,10 @@ on:
   workflow_call:
     inputs:
       contract:
-        description: Contract version the gate enforces against.
+        description: >-
+          Informational label for the manifest contract. The schema actually enforced is
+          manifest.schema.json shipped in THIS policies version (the tag the member references),
+          so the contract travels with the policies version. Reserved for future multi-contract support.
         type: string
         default: v1
     secrets:
@@ -43,7 +46,21 @@ jobs:
             echo "security=$(yq '.commands.security // ""'   "$MANIFEST_PATH")"
           } >> "$GITHUB_OUTPUT"
 
-      # 2) SET UP DECLARED TOOLCHAIN — driven by the manifest, not hardcoded per repo.
+      # 2) CHECK OUT POLICIES AT THIS VERSION — the platform owns the contract schema AND the agent,
+      #    both versioned with the tag the member referenced. So members never ship their own schema
+      #    and can't drift the contract. This is a HARD step: the schema feeds the gate below.
+      - name: Resolve policies version
+        id: ref
+        run: echo "ref=${GITHUB_WORKFLOW_REF##*@}" >> "$GITHUB_OUTPUT"
+      - name: Check out policies (contract schema + review agent)
+        uses: actions/checkout@v4
+        with:
+          repository: turingplanet/policies
+          ref: ${{ steps.ref.outputs.ref }}
+          path: .policies
+          persist-credentials: false
+
+      # 3) SET UP DECLARED TOOLCHAIN — driven by the manifest, not hardcoded per repo.
       - name: Set up Python
         if: steps.m.outputs.language == 'python'
         uses: actions/setup-python@v5
@@ -54,10 +71,10 @@ jobs:
         run: pipx install poetry
 
       # ---- HARD CHECKS ---- these FAIL the build. The gate weighs exactly these.
-      - name: Contract check — manifest matches schema at the contract version
+      - name: Contract check — manifest matches the platform schema
         run: |
           yq -o=json '.' "$MANIFEST_PATH" > /tmp/manifest.json
-          npx --yes ajv-cli@5 validate --spec=draft2020 -s manifest.schema.json -d /tmp/manifest.json
+          npx --yes ajv-cli@5 validate --spec=draft2020 -s .policies/manifest.schema.json -d /tmp/manifest.json
 
       - name: Install (declared)
         run: ${{ steps.m.outputs.install }}
@@ -73,22 +90,8 @@ jobs:
         if: steps.m.outputs.security != ''
         run: ${{ steps.m.outputs.security }}
 
-      # ---- ADVISORY ---- the standing review agent. Every step here is continue-on-error,
-      # so the agent REPORTS but the gate DECIDES (constant #3).
-      - name: Resolve agent version
-        id: agentref
-        continue-on-error: true
-        run: echo "ref=${GITHUB_WORKFLOW_REF##*@}" >> "$GITHUB_OUTPUT"
-
-      - name: Fetch the standing review agent (policies @ this version)
-        continue-on-error: true
-        uses: actions/checkout@v4
-        with:
-          repository: turingplanet/policies
-          ref: ${{ steps.agentref.outputs.ref }}
-          path: .policies
-          persist-credentials: false
-
+      # ---- ADVISORY ---- the standing review agent (already checked out at .policies). This step is
+      # continue-on-error, so the agent REPORTS but the gate DECIDES (constant #3).
       - name: LLM code review (advisory only — never gates)
         continue-on-error: true
         env:
@@ -103,5 +106,5 @@ jobs:
             echo "review agent unavailable — advisory step skipped" >> "$GITHUB_STEP_SUMMARY"
           fi
 
-  # THE GATE = this job succeeding (every hard-check step above passed). The advisory steps are
+  # THE GATE = this job succeeding (every hard-check step above passed). The advisory step is
   # continue-on-error, so the agent can never flip the result.
