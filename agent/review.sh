@@ -7,6 +7,12 @@ set -o pipefail
 MANIFEST="${1:-agent.manifest.yaml}"
 SUMMARY="${GITHUB_STEP_SUMMARY:-/dev/stdout}"
 MODEL="claude-opus-4-8"   # the agent's model is an agent-behavior lever — bump the agent to change it
+# Pricing for $MODEL — USD per TOKEN (claude-opus-4-8: $5 / $25 per 1M input/output; cache read 0.1×, write 1.25×).
+# KEEP IN SYNC with MODEL above: update these four rates whenever the model changes.
+PRICE_IN=0.000005
+PRICE_OUT=0.000025
+PRICE_CACHE_READ=0.0000005
+PRICE_CACHE_WRITE=0.00000625
 
 ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-}"
 PR_NUMBER="${PR_NUMBER:-}"
@@ -70,8 +76,20 @@ if [ -z "$findings" ]; then
   findings="_The review model returned no findings (${err})._"
 fi
 
-body=$(printf '## Repo review agent — findings (advisory)\n\n- model: `%s` · profile: `%s` · language: `%s`\n\n%s\n\n_Advisory only — the deterministic gate (build / tests / lint / security) decides pass/fail._' \
-  "$MODEL" "$profile" "$language" "$findings")
+# Token usage + estimated cost (advisory observability). Fields are absent on an API error/refusal → default 0.
+in_tok=$(printf '%s' "$resp"     | jq -r '.usage.input_tokens // 0'                2>/dev/null || echo 0)
+out_tok=$(printf '%s' "$resp"    | jq -r '.usage.output_tokens // 0'               2>/dev/null || echo 0)
+cwrite_tok=$(printf '%s' "$resp" | jq -r '.usage.cache_creation_input_tokens // 0' 2>/dev/null || echo 0)
+cread_tok=$(printf '%s' "$resp"  | jq -r '.usage.cache_read_input_tokens // 0'     2>/dev/null || echo 0)
+cost=$(awk -v i="$in_tok" -v o="$out_tok" -v cw="$cwrite_tok" -v cr="$cread_tok" \
+  -v pi="$PRICE_IN" -v po="$PRICE_OUT" -v pcw="$PRICE_CACHE_WRITE" -v pcr="$PRICE_CACHE_READ" \
+  'BEGIN { printf "%.4f", i*pi + o*po + cw*pcw + cr*pcr }' 2>/dev/null || echo "0.0000")
+usage_line=$(printf 'usage: %s in · %s out tokens · est. cost $%s (model %s)' "$in_tok" "$out_tok" "$cost" "$MODEL")
+# Surface in the Actions log as an annotation (shows in the run-summary UI, not just buried in step logs).
+printf '::notice title=Review agent usage::%s\n' "$usage_line"
+
+body=$(printf '## Repo review agent — findings (advisory)\n\n- model: `%s` · profile: `%s` · language: `%s`\n- %s\n\n%s\n\n_Advisory only — the deterministic gate (build / tests / lint / security) decides pass/fail._' \
+  "$MODEL" "$profile" "$language" "$usage_line" "$findings")
 
 # 1) Always to the run summary.
 printf '%s\n' "$body" >> "$SUMMARY"

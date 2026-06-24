@@ -13,6 +13,16 @@ on:
           so the contract travels with the policies version. Reserved for future multi-contract support.
         type: string
         default: v1
+      policies_ref:
+        description: >-
+          The policies @ref this member uses (e.g. v0.0.7) — MUST match the `uses: …@ref` line that
+          invoked this workflow. Used to check out the contract schema + review agent at that exact
+          version. GitHub does not expose the called reusable-workflow's own ref to the job
+          (github.job_workflow_sha is empty here; GITHUB_WORKFLOW_REF is the *caller's* ref), so the
+          version must be passed in. Unset → falls back to the policies default branch (legacy behavior).
+        type: string
+        required: false
+        default: ""
     secrets:
       ANTHROPIC_API_KEY:
         description: Key for the advisory LLM review. Optional — absent on fork PRs; the agent skips.
@@ -47,16 +57,17 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       # 2) CHECK OUT POLICIES AT THIS VERSION — the platform owns the contract schema AND the agent,
-      #    both versioned with the tag the member referenced. So members never ship their own schema
+      #    both versioned with the ref the member referenced. So members never ship their own schema
       #    and can't drift the contract. This is a HARD step: the schema feeds the gate below.
-      #    `github.job_workflow_sha` is the exact commit of THIS reusable workflow file, so the schema
-      #    and review.sh are pinned to the same policies commit that's executing — no parsing, no drift.
-      #    (Do NOT use GITHUB_WORKFLOW_REF: that is the *caller's* workflow ref, e.g. refs/pull/N/merge.)
+      #    The version comes from the `policies_ref` INPUT (the member's review.yml passes it to match
+      #    its `uses: …@ref`). GitHub does NOT expose the called workflow's own ref to the job:
+      #    github.job_workflow_sha is empty here, and GITHUB_WORKFLOW_REF is the *caller's* ref. If the
+      #    input is unset, checkout falls back to the policies default branch (legacy behavior).
       - name: Check out policies (contract schema + review agent)
         uses: actions/checkout@v4
         with:
           repository: turingplanet/policies
-          ref: ${{ github.job_workflow_sha }}
+          ref: ${{ inputs.policies_ref }}
           path: .policies
           persist-credentials: false
 
