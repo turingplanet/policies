@@ -34,4 +34,19 @@ flowchart LR
     ADOPT --> MC["member C ✓"]
 ```
 
-Versions are **frozen tags** (`v1`, `v2`, …) protected from being moved — so `@v4` always means exactly what it meant. Publishing `@v5` is how a new check or a smarter reviewer ships; members adopt it with a one-line bump. (Per the design's migration levers: bump the agent in `agent/` only when a check is AI-judged; everything else is a change to the flow.)
+Versions are **frozen tags** (`v1`, `v2`, …) protected from being moved — so `@v4` always means exactly what it meant. Publishing `@v5` is how a new check or a smarter reviewer ships.
+
+**The "one-line bump", concretely.** In *your own* member repo, edit **`.github/workflows/review.yml`** (your thin pointer) and change the version on the `uses:` line:
+
+```diff
+ jobs:
+   review:
+-    uses: turingplanet/policies/.github/workflows/review-reusable.yml@v4
++    uses: turingplanet/policies/.github/workflows/review-reusable.yml@v5
+     with:
+       contract: v1
+```
+
+That single line is the whole adoption — commit it (ideally via a PR, so your own gate runs against the new version), and your next PR uses `@v5`. You never copy or fork the flow.
+
+(Per the design's migration levers: bump the agent in `agent/` only when a check is AI-judged; everything else is a change to the flow.)
