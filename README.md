@@ -27,27 +27,27 @@ The **gate** (the hard checks passing) is what decides pass/fail. The AI reviewe
 
 ```mermaid
 flowchart LR
-    DEV["Platform improves a<br/>check or the reviewer"] --> PUB["Publishes policies@v5<br/>(v1…v4 stay frozen)"]
-    PUB --> ADOPT["Each member adopts with a<br/>one-line bump: @v4 → @v5"]
+    DEV["Platform improves a<br/>check or the reviewer"] --> PUB["Publishes policies@v0.0.5<br/>(v0.0.1…v0.0.4 stay frozen)"]
+    PUB --> ADOPT["Each member adopts with a<br/>one-line bump: @v0.0.4 → @v0.0.5"]
     ADOPT --> MA["member A ✓"]
     ADOPT --> MB["member B ✓"]
     ADOPT --> MC["member C ✓"]
 ```
 
-Versions are **frozen tags** (`v1`, `v2`, …) protected from being moved — so `@v4` always means exactly what it meant. Publishing `@v5` is how a new check or a smarter reviewer ships.
+Versions are **frozen tags** (`v0.0.1`, `v0.0.2`, …) protected from being moved — so `@v0.0.4` always means exactly what it meant. Publishing `@v0.0.5` is how a new check or a smarter reviewer ships.
 
 **The "one-line bump", concretely.** In *your own* member repo, edit **`.github/workflows/review.yml`** (your thin pointer) and change the version on the `uses:` line:
 
 ```diff
  jobs:
    review:
--    uses: turingplanet/policies/.github/workflows/review-reusable.yml@v4
-+    uses: turingplanet/policies/.github/workflows/review-reusable.yml@v5
+-    uses: turingplanet/policies/.github/workflows/review-reusable.yml@v0.0.4
++    uses: turingplanet/policies/.github/workflows/review-reusable.yml@v0.0.5
      with:
        contract: v1
 ```
 
-That single line is the whole adoption — commit it (ideally via a PR, so your own gate runs against the new version), and your next PR uses `@v5`. You never copy or fork the flow.
+That single line is the whole adoption — commit it (ideally via a PR, so your own gate runs against the new version), and your next PR uses `@v0.0.5`. You never copy or fork the flow.
 
 (Per the design's migration levers: bump the agent in `agent/` only when a check is AI-judged; everything else is a change to the flow.)
 
@@ -61,12 +61,12 @@ Cutting a new version is just **tagging a commit** — there is no version numbe
 git commit -am "review flow: <what changed>"
 
 # 2. Cut the version: create a NEW immutable tag and push it.
-git tag v5
+git tag v0.0.5
 git push origin main v5
 ```
 
-That's the whole release. `@v5` resolves to that git tag, and members adopt it with the [one-line bump](#how-a-change-here-reaches-everyone) shown above.
+That's the whole release. `@v0.0.5` resolves to that git tag, and members adopt it with the [one-line bump](#how-a-change-here-reaches-everyone) shown above.
 
-- **Tags are immutable + protected.** Always create a *new* tag (`v5`); never move or delete an old one — `v1…v4` stay frozen forever, so anyone still pinned to them is unaffected. The ruleset allows creating `v*` tags but blocks moving/deleting them.
-- **No internal version edits.** The flow checks out the agent at the tag the member used, so tagging `v5` automatically runs the v5 agent — you never hardcode a version anywhere in this repo.
+- **Tags are immutable + protected.** Always create a *new* tag (`v0.0.5`); never move or delete an old one — `v0.0.1…v0.0.4` stay frozen forever, so anyone still pinned to them is unaffected. The ruleset allows creating `v*` tags but blocks moving/deleting them.
+- **No internal version edits.** The flow checks out the agent at the tag the member used, so tagging `v0.0.5` automatically runs the v0.0.5 agent — you never hardcode a version anywhere in this repo.
 - **`contract:` is a different version.** The `contract: v1` input is the *manifest contract* version (bumped only when the manifest schema itself changes), not the policies tag.
