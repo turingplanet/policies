@@ -1,0 +1,14 @@
+# THE ONE STANDING REVIEW AGENT (constant #1). Platform-owned, permanent, never forked.
+# Reads the manifest; writes advisory findings only. It REPORTS — it never DECIDES (constant #3).
+name: repo-review-agent
+description: The single standing review agent. Reads the manifest and emits advisory findings.
+inputs:
+  manifest:
+    description: Path to the manifest (the anchor).
+    required: false
+    default: agent.manifest.yaml
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: ${{ github.action_path }}/review.sh "${{ inputs.manifest }}"

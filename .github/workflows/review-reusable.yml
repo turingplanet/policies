@@ -1,0 +1,61 @@
+# THE ONE FLOW (constant #2): read manifest -> install + declared tests -> checks -> GATE DECIDES.
+# Identical before, during, and after any migration. Referenced live by members as @vN (REFERENCE path).
+name: review-reusable
+
+on:
+  workflow_call:
+    inputs:
+      contract:
+        description: Contract version the gate enforces against.
+        type: string
+        default: v1
+
+env:
+  MANIFEST_PATH: agent.manifest.yaml   # the anchor — the one hardcoded path
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 1) READ THE MANIFEST (the seam) — every downstream step uses these declared values.
+      - name: Read manifest
+        id: m
+        run: |
+          test -f "$MANIFEST_PATH" || { echo "::error::no manifest at the anchor ($MANIFEST_PATH)"; exit 1; }
+          {
+            echo "install=$(yq  -r '.commands.install'         "$MANIFEST_PATH")"
+            echo "test=$(yq     -r '.commands.test'             "$MANIFEST_PATH")"
+            echo "lint=$(yq     -r '.commands.lint     // \"\"' "$MANIFEST_PATH")"
+            echo "security=$(yq -r '.commands.security // \"\"' "$MANIFEST_PATH")"
+          } >> "$GITHUB_OUTPUT"
+
+      # ---- HARD CHECKS ---- these FAIL the build. The gate weighs exactly these.
+      - name: Contract check — manifest matches schema at the contract version
+        run: npx --yes ajv-cli@5 validate --spec=draft2020 -s manifest.schema.json -d "$MANIFEST_PATH"
+
+      - name: Install (declared)
+        run: ${{ steps.m.outputs.install }}
+
+      - name: Tests (declared)
+        run: ${{ steps.m.outputs.test }}
+
+      - name: Lint (declared, if present)
+        if: steps.m.outputs.lint != ''
+        run: ${{ steps.m.outputs.lint }}
+
+      - name: Security scan (declared, if present)
+        if: steps.m.outputs.security != ''
+        run: ${{ steps.m.outputs.security }}
+
+      # ---- ADVISORY ---- the LLM review can NEVER fail the build.
+      # Constant #3: the agent REPORTS, the gate DECIDES. `continue-on-error` enforces that here.
+      - name: LLM code review (advisory only)
+        continue-on-error: true
+        run: |
+          echo "TODO: invoke the standing review agent (see policies/agent/review.sh)."
+          echo "It writes findings to the PR / step summary. It must never gate."
+
+  # THE GATE = the set of required checks above succeeding. In branch protection, make this
+  # job a required status check; the advisory step stays non-required by construction.
