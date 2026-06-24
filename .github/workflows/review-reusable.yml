@@ -49,14 +49,14 @@ jobs:
       # 2) CHECK OUT POLICIES AT THIS VERSION — the platform owns the contract schema AND the agent,
       #    both versioned with the tag the member referenced. So members never ship their own schema
       #    and can't drift the contract. This is a HARD step: the schema feeds the gate below.
-      - name: Resolve policies version
-        id: ref
-        run: echo "ref=${GITHUB_WORKFLOW_REF##*@}" >> "$GITHUB_OUTPUT"
+      #    `github.job_workflow_sha` is the exact commit of THIS reusable workflow file, so the schema
+      #    and review.sh are pinned to the same policies commit that's executing — no parsing, no drift.
+      #    (Do NOT use GITHUB_WORKFLOW_REF: that is the *caller's* workflow ref, e.g. refs/pull/N/merge.)
       - name: Check out policies (contract schema + review agent)
         uses: actions/checkout@v4
         with:
           repository: turingplanet/policies
-          ref: ${{ steps.ref.outputs.ref }}
+          ref: ${{ github.job_workflow_sha }}
           path: .policies
           persist-credentials: false
 
