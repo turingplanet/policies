@@ -50,3 +50,23 @@ Versions are **frozen tags** (`v1`, `v2`, …) protected from being moved — so
 That single line is the whole adoption — commit it (ideally via a PR, so your own gate runs against the new version), and your next PR uses `@v5`. You never copy or fork the flow.
 
 (Per the design's migration levers: bump the agent in `agent/` only when a check is AI-judged; everything else is a change to the flow.)
+
+## Publishing a new version (platform-side)
+
+Cutting a new version is just **tagging a commit** — there is no version number inside any file to change.
+
+```bash
+# 1. Change the flow (.github/workflows/review-reusable.yml) and/or the agent (agent/).
+#    main is protected, so land it via a PR — or push directly with the org-admin bypass.
+git commit -am "review flow: <what changed>"
+
+# 2. Cut the version: create a NEW immutable tag and push it.
+git tag v5
+git push origin main v5
+```
+
+That's the whole release. `@v5` resolves to that git tag, and members adopt it with the [one-line bump](#how-a-change-here-reaches-everyone) shown above.
+
+- **Tags are immutable + protected.** Always create a *new* tag (`v5`); never move or delete an old one — `v1…v4` stay frozen forever, so anyone still pinned to them is unaffected. The ruleset allows creating `v*` tags but blocks moving/deleting them.
+- **No internal version edits.** The flow checks out the agent at the tag the member used, so tagging `v5` automatically runs the v5 agent — you never hardcode a version anywhere in this repo.
+- **`contract:` is a different version.** The `contract: v1` input is the *manifest contract* version (bumped only when the manifest schema itself changes), not the policies tag.
