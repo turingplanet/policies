@@ -22,8 +22,8 @@ if [ -z "$ANTHROPIC_API_KEY" ]; then
   exit 0
 fi
 
-profile=$(yq '.profile // "unknown"' "" 2>/dev/null || echo "unknown")
-language=$(yq '.toolchain.language // "unknown"' "" 2>/dev/null || echo "unknown")
+profile=$(yq '.profile // "unknown"' "$MANIFEST" 2>/dev/null || echo "unknown")
+language=$(yq '.toolchain.language // "unknown"' "$MANIFEST" 2>/dev/null || echo "unknown")
 
 # The change under review.
 diff=$(gh pr diff "$PR_NUMBER" --repo "$REPO" 2>/dev/null || true)
