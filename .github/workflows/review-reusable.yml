@@ -1,5 +1,5 @@
 # THE ONE FLOW (constant #2): read manifest -> set up declared toolchain -> install + declared tests
-# -> checks -> GATE DECIDES. Identical before, during, and after any migration.
+# -> checks -> GATE DECIDES. The LLM review is advisory and structurally cannot gate (constant #3).
 # Referenced live by members as @vN (REFERENCE path).
 name: review-reusable
 
@@ -10,6 +10,14 @@ on:
         description: Contract version the gate enforces against.
         type: string
         default: v1
+    secrets:
+      ANTHROPIC_API_KEY:
+        description: Key for the advisory LLM review. Optional — absent on fork PRs; the agent skips.
+        required: false
+
+permissions:
+  contents: read
+  pull-requests: write   # lets the advisory agent post a PR comment (best-effort)
 
 env:
   MANIFEST_PATH: agent.manifest.yaml   # the anchor — the one hardcoded path
@@ -31,12 +39,11 @@ jobs:
             echo "profile=$(yq  '.profile'                   "$MANIFEST_PATH")"
             echo "install=$(yq  '.commands.install'          "$MANIFEST_PATH")"
             echo "test=$(yq     '.commands.test'             "$MANIFEST_PATH")"
-            echo "lint=$(yq     '.commands.lint     // ""' "$MANIFEST_PATH")"
-            echo "security=$(yq '.commands.security // ""' "$MANIFEST_PATH")"
+            echo "lint=$(yq     '.commands.lint     // ""'   "$MANIFEST_PATH")"
+            echo "security=$(yq '.commands.security // ""'   "$MANIFEST_PATH")"
           } >> "$GITHUB_OUTPUT"
 
       # 2) SET UP DECLARED TOOLCHAIN — driven by the manifest, not hardcoded per repo.
-      #    profile: python-mcp => python + poetry. A new profile just adds its own branch here.
       - name: Set up Python
         if: steps.m.outputs.language == 'python'
         uses: actions/setup-python@v5
@@ -66,17 +73,35 @@ jobs:
         if: steps.m.outputs.security != ''
         run: ${{ steps.m.outputs.security }}
 
-      # ---- ADVISORY ---- the LLM review can NEVER fail the build.
-      # Constant #3: the agent REPORTS, the gate DECIDES. continue-on-error enforces that here.
-      - name: LLM code review (advisory only)
+      # ---- ADVISORY ---- the standing review agent. Every step here is continue-on-error,
+      # so the agent REPORTS but the gate DECIDES (constant #3).
+      - name: Resolve agent version
+        id: agentref
         continue-on-error: true
-        run: |
-          {
-            echo "## Repo review agent — findings (advisory)"
-            echo
-            echo "- profile: \`${{ steps.m.outputs.profile }}\` · language: \`${{ steps.m.outputs.language }}\` · pm: \`${{ steps.m.outputs.pm }}\`"
-            echo "- TODO: call the LLM with the diff + manifest context; these notes never gate."
-          } >> "$GITHUB_STEP_SUMMARY"
+        run: echo "ref=${GITHUB_WORKFLOW_REF##*@}" >> "$GITHUB_OUTPUT"
 
-  # THE GATE = this job succeeding (every hard-check step above passed). In branch protection,
-  # make this job a required status check; the advisory step stays non-required by construction.
+      - name: Fetch the standing review agent (policies @ this version)
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          repository: turingplanet/policies
+          ref: ${{ steps.agentref.outputs.ref }}
+          path: .policies
+          persist-credentials: false
+
+      - name: LLM code review (advisory only — never gates)
+        continue-on-error: true
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          if [ -f .policies/agent/review.sh ]; then
+            bash .policies/agent/review.sh "$MANIFEST_PATH"
+          else
+            echo "review agent unavailable — advisory step skipped" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  # THE GATE = this job succeeding (every hard-check step above passed). The advisory steps are
+  # continue-on-error, so the agent can never flip the result.
