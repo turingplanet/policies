@@ -70,7 +70,7 @@ git tag v0.0.5
 git push origin main v0.0.5
 ```
 
-That's the whole release. `@v0.0.5` resolves to that git tag, and members adopt it with the [one-line bump](#how-a-change-here-reaches-everyone) shown above.
+That's the whole release. `@v0.0.5` resolves to that git tag, and members adopt it with the [version bump](#how-a-change-here-reaches-everyone) shown above.
 
 - **Tags are immutable + protected.** Always create a *new* tag (`v0.0.5`); never move or delete an old one — `v0.0.1…v0.0.4` stay frozen forever, so anyone still pinned to them is unaffected. The ruleset allows creating `v*` tags but blocks moving/deleting them.
 - **No internal version edits.** There's no version string inside this repo. The flow checks out its schema + agent at the **`policies_ref`** the member passes (which must match their `uses:@vN`) — GitHub doesn't expose the called workflow's own version, so the member states it. Tagging is the only release action here.
