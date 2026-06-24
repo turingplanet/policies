@@ -62,7 +62,7 @@ git commit -am "review flow: <what changed>"
 
 # 2. Cut the version: create a NEW immutable tag and push it.
 git tag v0.0.5
-git push origin main v5
+git push origin main v0.0.5
 ```
 
 That's the whole release. `@v0.0.5` resolves to that git tag, and members adopt it with the [one-line bump](#how-a-change-here-reaches-everyone) shown above.
