@@ -1,5 +1,7 @@
 # policies — the logic (Platform-owned · REFERENCE target)
 
+> **Part of 图灵星球 Agent 军团.** For the full picture — the three repos and how change flows between them — start at the overview: **https://github.com/turingplanet/agent-legion**
+
 Referenced live by member repos as `@vN`. A change here reaches the whole fleet instantly,
 with no per-repo work — so this folder carries everything that should propagate centrally:
 
