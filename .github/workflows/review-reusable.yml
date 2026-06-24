@@ -1,5 +1,6 @@
-# THE ONE FLOW (constant #2): read manifest -> install + declared tests -> checks -> GATE DECIDES.
-# Identical before, during, and after any migration. Referenced live by members as @vN (REFERENCE path).
+# THE ONE FLOW (constant #2): read manifest -> set up declared toolchain -> install + declared tests
+# -> checks -> GATE DECIDES. Identical before, during, and after any migration.
+# Referenced live by members as @vN (REFERENCE path).
 name: review-reusable
 
 on:
@@ -19,21 +20,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # 1) READ THE MANIFEST (the seam) — every downstream step uses these declared values.
+      # 1) READ THE MANIFEST (the seam). The runner ships mikefarah yq; scalars print raw (no -r).
       - name: Read manifest
         id: m
         run: |
           test -f "$MANIFEST_PATH" || { echo "::error::no manifest at the anchor ($MANIFEST_PATH)"; exit 1; }
           {
-            echo "install=$(yq  -r '.commands.install'         "$MANIFEST_PATH")"
-            echo "test=$(yq     -r '.commands.test'             "$MANIFEST_PATH")"
-            echo "lint=$(yq     -r '.commands.lint     // \"\"' "$MANIFEST_PATH")"
-            echo "security=$(yq -r '.commands.security // \"\"' "$MANIFEST_PATH")"
+            echo "language=$(yq '.toolchain.language'        "$MANIFEST_PATH")"
+            echo "pm=$(yq       '.toolchain.packageManager'  "$MANIFEST_PATH")"
+            echo "profile=$(yq  '.profile'                   "$MANIFEST_PATH")"
+            echo "install=$(yq  '.commands.install'          "$MANIFEST_PATH")"
+            echo "test=$(yq     '.commands.test'             "$MANIFEST_PATH")"
+            echo "lint=$(yq     '.commands.lint     // \"\"' "$MANIFEST_PATH")"
+            echo "security=$(yq '.commands.security // \"\"' "$MANIFEST_PATH")"
           } >> "$GITHUB_OUTPUT"
+
+      # 2) SET UP DECLARED TOOLCHAIN — driven by the manifest, not hardcoded per repo.
+      #    profile: python-mcp => python + poetry. A new profile just adds its own branch here.
+      - name: Set up Python
+        if: steps.m.outputs.language == 'python'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Set up poetry
+        if: steps.m.outputs.pm == 'poetry'
+        run: pipx install poetry
 
       # ---- HARD CHECKS ---- these FAIL the build. The gate weighs exactly these.
       - name: Contract check — manifest matches schema at the contract version
-        run: npx --yes ajv-cli@5 validate --spec=draft2020 -s manifest.schema.json -d "$MANIFEST_PATH"
+        run: |
+          yq -o=json '.' "$MANIFEST_PATH" > /tmp/manifest.json
+          npx --yes ajv-cli@5 validate --spec=draft2020 -s manifest.schema.json -d /tmp/manifest.json
 
       - name: Install (declared)
         run: ${{ steps.m.outputs.install }}
@@ -50,12 +67,16 @@ jobs:
         run: ${{ steps.m.outputs.security }}
 
       # ---- ADVISORY ---- the LLM review can NEVER fail the build.
-      # Constant #3: the agent REPORTS, the gate DECIDES. `continue-on-error` enforces that here.
+      # Constant #3: the agent REPORTS, the gate DECIDES. continue-on-error enforces that here.
       - name: LLM code review (advisory only)
         continue-on-error: true
         run: |
-          echo "TODO: invoke the standing review agent (see policies/agent/review.sh)."
-          echo "It writes findings to the PR / step summary. It must never gate."
+          {
+            echo "## Repo review agent — findings (advisory)"
+            echo
+            echo "- profile: \`${{ steps.m.outputs.profile }}\` · language: \`${{ steps.m.outputs.language }}\` · pm: \`${{ steps.m.outputs.pm }}\`"
+            echo "- TODO: call the LLM with the diff + manifest context; these notes never gate."
+          } >> "$GITHUB_STEP_SUMMARY"
 
-  # THE GATE = the set of required checks above succeeding. In branch protection, make this
-  # job a required status check; the advisory step stays non-required by construction.
+  # THE GATE = this job succeeding (every hard-check step above passed). In branch protection,
+  # make this job a required status check; the advisory step stays non-required by construction.
