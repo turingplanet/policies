@@ -31,8 +31,8 @@ jobs:
             echo "profile=$(yq  '.profile'                   "$MANIFEST_PATH")"
             echo "install=$(yq  '.commands.install'          "$MANIFEST_PATH")"
             echo "test=$(yq     '.commands.test'             "$MANIFEST_PATH")"
-            echo "lint=$(yq     '.commands.lint     // \"\"' "$MANIFEST_PATH")"
-            echo "security=$(yq '.commands.security // \"\"' "$MANIFEST_PATH")"
+            echo "lint=$(yq     '.commands.lint     // ""' "$MANIFEST_PATH")"
+            echo "security=$(yq '.commands.security // ""' "$MANIFEST_PATH")"
           } >> "$GITHUB_OUTPUT"
 
       # 2) SET UP DECLARED TOOLCHAIN — driven by the manifest, not hardcoded per repo.
